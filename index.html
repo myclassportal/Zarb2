@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>بازی ضرب دو رقم در دو رقم</title>
+    <script src="supabase.js" defer></script>
+    <script src="game-db.js" defer></script>
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('Vazirmatn-Bold.woff2') format('woff2');
+            font-weight: bold;
+            font-style: normal;
+        }
+        :root {
+            --primary: #2c3e50;
+            --accent: #27ae60;
+            --wrong: #c0392b;
+            --highlight: #f39c12;
+            --bg: #f0f4f8;
+            --box-bg: #ffffff;
+            --sent: #7f8c8d;
+            --carry-red: #e74c3c;
+        }
+        * {
+            box-sizing: border-box;
+            font-family: 'Vazirmatn', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--primary);
+            padding: 10px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .screen {
+            display: none !important;
+        }
+        .screen.active {
+            display: block !important;
+        }
+        .hidden {
+            display: none !important;
+        }
+        #portal-submitting-screen.active {
+            display: flex !important;
+        }
+        #screen-assistant.active {
+            display: block !important;
+        }
+        .container {
+            background: var(--box-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            position: relative;
+        }
+        h1, h2 {
+            margin-bottom: 10px;
+            color: #2980b9;
+            font-size: 1.4em;
+        }
+        .school-name {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            display: block;
+        }
+        .carry-over-container {
+            position: absolute;
+            top: 130px;
+            right: 2px;
+            background: rgba(255, 248, 225, 0.95);
+            border: 1px dashed #f1c40f;
+            padding: 5px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            z-index: 50;
+        }
+        .carry-input {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 1.2em;
+            outline: none;
+            cursor: pointer;
+            background: white;
+            padding: 0;
+            margin: 0;
+            transition: all 0.3s;
+        }
+        .carry-input.active-carry {
+            border-color: #e74c3c;
+            background-color: #fadbd8;
+            font-weight: bold;
+        }
+        .carry-input.used {
+            text-decoration: line-through;
+            color: #aaa;
+            background: #eee;
+        }
+        .btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 0.95em;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        .btn-secondary {
+            background-color: #e67e22;
+        }
+        .btn-info {
+            background-color: #3498db;
+        }
+        .btn-hidden {
+            display: none !important;
+        }
+        .btn-eraser {
+            background-color: var(--wrong) !important;
+        }
+        .carry-clear-btn {
+            padding: 5px 8px !important;
+            font-size: 1.1em !important;
+            width: fit-content;
+            margin: 5px 0 0 0 !important;
+            align-self: flex-end;
+            border-radius: 5px;
+            line-height: 1;
+        }
+        .row-check-btn {
+            padding: 0;
+            font-size: 0.75em;
+            background-color: #3498db;
+            border-radius: 5px;
+            height: 34px;
+            width: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            visibility: hidden;
+            margin: 0 auto;
+        }
+        .math-grid {
+            display: inline-grid;
+            grid-template-columns: repeat(5, 40px) 70px;
+            gap: 6px 4px;
+            margin: 20px auto;
+            direction: ltr;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (max-width: 450px) {
+            .math-grid {
+                grid-template-columns: repeat(5, 34px) 60px;
+                gap: 4px 2px;
+            }
+            .cell, .input-cell {
+                width: 34px;
+                height: 34px;
+                font-size: 1.2em;
+            }
+            .add-carry-cell {
+                font-size: 0.9em;
+                height: 18px;
+            }
+        }
+        .cell{display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:bold;transition:all 0.3s;border-radius:50%;width:38px;height:38px;}
+        .add-carry-cell{display:flex;align-items:flex-end;justify-content:center;font-size:1em;font-weight:bold;color:var(--carry-red);height:20px;width:100%;margin-bottom:-8px;z-index:10;}
+        .highlight-digit{background-color:#ffe082;color:#d35400;border:2px solid #f39c12;transform:scale(1.1);}
+        .col-highlight{background-color:#e3f2fd;border-radius:4px;}
+        .input-cell{width:38px;height:38px;font-size:1.3em;text-align:center;border:2px solid #bdc3c7;border-radius:6px;background:#fafafa;padding:0;-moz-appearance:textfield;}
+        .input-cell:focus{background:#e8f0fe;border-color:#2980b9;}
+        .input-cell:read-only{background:#f0f0f0;color:#555;cursor:default;}
+        .correct-input{background-color:#d4edda !important;border-color:var(--accent) !important;color:var(--accent);}
+        .wrong-input{background-color:#f8d7da !important;border-color:var(--wrong) !important;color:var(--wrong);cursor:pointer;}
+        .line{grid-column:1/7;height:2px;background-color:#333;margin:4px 0;}
+        .operator{grid-column:1/2;display:flex;align-items:center;justify-content:center;font-size:1.4em;color:#555;}
+        .stats-bar{display:flex;justify-content:space-between;background:#ecf0f1;padding:8px 12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;}
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        .modal-box {
+            background: white;
+            padding: 25px 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 350px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #c0392b;
+            margin-bottom: 10px;
+        }
+        .modal-text {
+            font-size: 0.95em;
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .hint-alert {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            display: none;
+            border: 1px solid #ffeeba;
+            text-align: right;
+            line-height: 1.6;
+        }
+        @keyframes blink-fill {
+            0% { background-color: #ffe082; transform: scale(1.1); box-shadow: 0 0 10px #f39c12; }
+            50% { background-color: #f1c40f; transform: scale(1.15); border-color: #d35400; }
+            100% { background-color: #d4edda; transform: scale(1); box-shadow: none; }
+        }
+        .newly-filled {
+            animation: blink-fill 1.2s ease-in-out;
+            z-index: 20;
+        }
+        @keyframes blink-text {
+            0% { transform: scale(1.5); color: #d35400; }
+            50% { transform: scale(1.8); color: #e74c3c; }
+            100% { transform: scale(1); color: var(--carry-red); }
+        }
+        .newly-filled-text {
+            animation: blink-text 1.2s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="Screen-Loading" style="display:none; background:linear-gradient(135deg,#a1c4fd,#c2e9fb); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+    <div style="font-size: 3.5rem; margin-bottom: 15px;">🐰</div>
+    <h1 style="color:#2c3e50; font-size:24pt; margin-bottom:30px; font-weight: bold;">ضرب دو رقم در دو رقم</h1>
+    <div style="background:#e0e0e0; border-radius:12px; height:18px; width:80%; max-width:400px; overflow:hidden; margin-bottom:18px; border:2px solid #2c3e50; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+        <div id="portal-loading-bar" style="background: linear-gradient(90deg, #ff007f, #aa00ff, #00b0ff); width:0%; height:100%; transition:width 0.3s ease; box-shadow: 0 0 10px rgba(170,0,255,0.5);"></div>
+    </div>
+    <p id="portal-loading-text" style="font-size:13pt; color:#2c3e50; font-weight:bold;"></p>
+</div>
+
+<div id="confirmModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-title">⚠️ شروع حالت آموزشی</div>
+        <div class="modal-text">
+            آیا مطمئنی قهرمان؟ برای استفاده از راهنمای گام‌به‌گام، تمام پاسخ‌های فعلی‌ات پاک می‌شن و باید به راهنمایی‌ها گوش کنی. این دور فقط برای یادگیریه و ستاره‌ای براش ثبت نمی‌شه.
+        </div>
+        <div class="modal-buttons">
+            <button class="btn btn-secondary" onclick="startPracticeMode()">آره، شروع کن</button>
+            <button class="btn btn-eraser" onclick="closeModal()">نه، خودم حل می‌کنم</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="screen active" id="screen-register">
+        <span class="school-name" id="portal-school-title">دبستان معاد خرگوشی</span>
+        
+        <div id="register-container">
+            <div id="portal-welcome-section">
+                <h1 style="color:#2c3e50; font-size:1.5rem; margin-bottom:10px;">سلام دانش‌آموز زرنگم! 🌟</h1>
+                <p style="color:#555; margin-bottom:15px; font-size:0.95em;">بیا با هم ضرب دو رقم در دو رقم رو تمرین کنیم و ستاره بگیریم!</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px; background: #f8f9fa; border-radius: 10px; padding: 15px; border: 1px dashed #bdc3c7; margin: 15px auto; text-align: right; direction: rtl; font-size: 1rem; width: 100%; max-width: 280px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>👤 نامت:</span>
+                        <span id="portal-student-name" style="font-weight:bold; color:#2c3e50;">---</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>🎮 تعداد تلاش‌های قبلی:</span>
+                        <span id="portal-prev-plays" style="font-weight:bold; color:#e67e22;">۰</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>⭐ ستاره‌های ثبت‌شده:</span>
+                        <span id="portal-prev-stars" style="font-weight:bold; color:#f39c12;">۰ ⭐</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; color:#27ae60; border-top:1px dashed #bdc3c7; padding-top:8px; margin-top:5px;">
+                        <span>🎯 ستاره مورد نیاز تکلیف:</span>
+                        <span id="portal-req-stars">۰ ⭐</span>
+                    </div>
+                </div>
+            </div>
+            <button id="startGame" style="background:#2ecc71; color:white; padding:12px 20px; border:none; border-radius:10px; cursor:pointer; width:100%; max-width:250px; display:block; margin:20px auto 0; font-weight: bold; font-size: 1.1rem; transition: background 0.3s;">شروع بازی تکلیف 🎮</button>
+        </div>
+
+        <div id="portal-error-section" style="display:none; text-align:center; padding:20px; max-width: 450px; margin: 20px auto; background: white; border-radius: 12px; box-shadow:0 6px 18px rgba(0,0,0,0.12);">
+            <div style="font-size:2.5rem; margin-bottom:10px;">⚠️</div>
+            <h3 id="portal-error-title" style="color:#d32f2f; margin-bottom:8px; font-weight:bold; font-size:15pt;">خطا در اتصال به پرتال کلاس</h3>
+            <p id="portal-error-desc" style="color:#555; font-size:12pt; margin-bottom:15px; line-height:1.6;">جهت بارگذاری مشخصات و تکالیفت، اتصال به اینترنت الزامی است. لطفا شبکه‌ات را بررسی کن و مجدداً تلاش کن.</p>
+            <button id="portal-retry-auth-btn" style="background:#1e90ff; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retryAuthentication()">🔄 تلاش مجدد برای اتصال</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-game">
+        <div id="carryOverBox" class="carry-over-container" style="display:none;">
+            <input type="tel" inputmode="numeric" id="carry_0" class="carry-input" oninput="handleCarryInput(this)" onclick="toggleStrike(this)">
+            <input type="tel" inputmode="numeric" id="carry_1" class="carry-input" oninput="handleCarryInput(this)" onclick="toggleStrike(this)">
+            <input type="tel" inputmode="numeric" id="carry_2" class="carry-input" oninput="handleCarryInput(this)" onclick="toggleStrike(this)">
+            <button id="clearCarryBtn" class="btn btn-eraser btn-hidden carry-clear-btn" onclick="resetCarryOver()">🧹</button>
+        </div>
+
+        <div class="stats-bar">
+            <span id="dispName">دانش‌آموز</span>
+            <span>⭐ ستاره: <span id="dispStars">۰</span></span>
+        </div>
+
+        <h2>ضرب دو رقم در دو رقم</h2>
+
+        <div id="game-area"></div>
+
+        <div id="hintAlertBox" class="hint-alert"></div>
+
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <button id="hintBtn" class="btn btn-secondary" onclick="revealOneStepHint()">راهنمای گام‌به‌گام 💡</button>
+            <button id="finishBtn" class="btn btn-hidden" style="background:#7f8c8d;" onclick="finishSession()">ثبت امتیاز و مشاهده کارنامه 🏆</button>
+            <button id="newQBtn" class="btn btn-info btn-hidden" onclick="newQuestion()">سوال بعدی 🎮</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-report">
+        <h2>کارنامه درخشانت 🌟</h2>
+        <div style="text-align: right; background: #fafafa; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 20px;">
+            <p><strong>مدرسه:</strong> <span id="repSchool">دبستان معاد خرگوشی</span></p>
+            <p><strong>نام دانش‌آموز:</strong> <span id="repName">---</span></p>
+            <p><strong>تاریخ و زمان:</strong> <span id="repDate">---</span></p>
+            <p><strong>تعداد تلاش‌ها:</strong> <span id="repPlays">۰</span></p>
+            <p><strong>ستاره‌های گرفته‌شده:</strong> <span id="repStars">۰</span></p>
+            <p id="portal-req-stars-row" style="display:none;"><strong>🎯 ستاره مورد نیاز تکلیف:</strong> <span id="repReqStars">۰ ⭐</span></p>
+        </div>
+
+        <div id="portal-submit-badge" style="display:none; background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:15px; border-radius:12px; margin-bottom:12px; font-weight:bold; font-size:12.5pt; line-height:1.6; text-align:right; width: 100%;"></div>
+
+        <div id="portal-goal-reached-badge" style="display:none; background:#e8f5e9; border:2px solid #2e7d32; color:#1b5e20; padding:15px; border-radius:12px; margin-bottom:15px; font-weight:bold; font-size:12.5pt; line-height:1.6; direction:rtl; text-align:right; width: 100%;">
+            🎉 هوراااا قهرمان پرتلاش! هدف تکلیف رو کاملاً ترکوندی و همه‌ی ستاره‌های مورد نیاز رو گرفتی! تو فوق‌العاده‌ای! 🥇 حالا می‌تونی با خیال راحت به پرتال برگردی. خداقوت! ❤️
+        </div>
+
+        <div id="portal-back-instruction" style="display:none; width: 100%;"></div>
+
+        <br>
+        <button id="playAgainBtn" class="btn" onclick="restartGame()">تلاش دوباره 🔄</button>
+    </div>
+
+    <div id="portal-submitting-screen" class="screen" style="background:linear-gradient(135deg,#a1c4fd,#c2e9fb); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+        <div class="container" style="max-width: 450px;">
+            <h3 id="portal-progress-title" style="color:#2c3e50; margin-bottom:15px; font-weight:bold; font-size:16pt;">⏳ در حال ارسال نتایج به دیتابیس کلاس...</h3>
+            <div style="background:#eee; border-radius:10px; height:20px; width:100%; overflow:hidden; margin-bottom:15px; border:1px solid #ccc;">
+                <div id="portal-progress-bar" style="background:linear-gradient(90deg, #ff007f, #aa00ff, #00b0ff); width:0%; height:100%; transition:width 0.2s;"></div>
+            </div>
+            <p id="portal-submit-status-text" style="font-size:12pt; color:#555; font-weight:bold; line-height:1.6; direction:rtl;"></p>
+            <button id="portal-retry-submit-btn" style="display:none; margin:15px auto 0; background:#e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retrySubmission()">🔄 تلاش مجدد برای ارسال</button>
+        </div>
+    </div>
+
+    <div id="screen-assistant" class="screen" style="max-width: 450px; margin: 0 auto;">
+        <h2 style="color: #2c3e50; margin-bottom: 20px; font-size: 1.5rem;">🌟 دستیار ثبت ستاره 🌟</h2>
+        <div style="background: #fff; border: 2px dashed #3498db; border-radius: 12px; padding: 20px; margin-bottom: 25px; line-height: 1.8; text-align: justify; direction: rtl;">
+            <span style="font-size: 14pt; font-weight: bold; color: #2c3e50; display: block; margin-bottom: 10px;" id="ast-welcome">سلام قهرمان!</span>
+            <p style="font-size: 11pt; color: #333; margin: 0;">
+                بازی قبلی‌ات با موفقیت تمام شده بود، اما به خاطر قطع شدن اینترنت، ستاره‌ی طلایی‌ات به دفتر کلاسی معلم نرسیده بود. 
+                اصلاً نگران نباش! نیازی به بازی دوباره نیست. دکمه زیر را بزن تا ستاره‌ات ثبت بشه و کارنامه‌اش رو ببینی. 😊
+            </p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; background: #f8f9fa; border: 1px solid #bdc3c7; border-radius: 10px; padding: 15px; margin-bottom: 25px; text-align: right; direction: rtl; font-size:12pt;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>👤 نامت:</span>
+                <span id="ast-name" style="font-weight:bold; color:#2c3e50;">---</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>⭐ ستاره‌های ثبت‌شده قبلی:</span>
+                <span id="ast-stars" style="font-weight:bold; color:#f39c12;">۰ ⭐</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span>🎯 ستاره هدف تکلیف:</span>
+                <span id="ast-req-stars" style="font-weight:bold; color:#27ae60;">۰ ⭐</span>
+            </div>
+        </div>
+        <button style="width: 100%; height: 50px; background: #2ecc71; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size:13pt;" onclick="submitAssistantStar()">🌟 ثبت ستاره‌ی طلایی من و دریافت کارنامه</button>
+    </div>
+</div>
+
+<script>
+    let STORAGE = 'studentProfile_Zarb2x2_Default';
+    let GAME_STATE_STORAGE = 'gameState_Zarb2x2_Default';
+
+    let state = {
+        name: "", stars: 0, totalPlays: 0,
+        currentProblem: null, currentGameUsedHint: false,
+        reportSent: false,
+        gridValues: {},
+        carryStates: {},
+        addCarryValues: {},
+        currentScreen: 'register'
+    };
+
+    let lastFocusedInputId = null;
+
+    function setLastFocus(el) {
+        lastFocusedInputId = el.id;
+    }
+
+    function returnFocusToGrid() {
+        if (lastFocusedInputId) {
+            const el = document.getElementById(lastFocusedInputId);
+            if (el && !el.disabled && !el.readOnly) {
+                el.focus();
+            }
+        }
+    }
+
+    function loadProfile() {
+        const stored = localStorage.getItem(STORAGE);
+        if (stored) {
+            try { 
+                const parsed = JSON.parse(stored); 
+                if (parsed && typeof parsed === 'object') {
+                    state = parsed;
+                    if (!state.gridValues) state.gridValues = {};
+                    if (!state.carryStates) state.carryStates = {};
+                    if (!state.addCarryValues) state.addCarryValues = {};
+                }
+            } catch(e){}
+        }
+    }
+
+    function saveProfile() { 
+        localStorage.setItem(STORAGE, JSON.stringify(state)); 
+    }
+
+    function saveGridState() {
+        document.querySelectorAll('.input-cell').forEach(inp => {
+            if (!state.gridValues) state.gridValues = {};
+            state.gridValues[inp.id] = inp.value;
+        });
+        document.querySelectorAll('.carry-input').forEach(inp => {
+            if (!state.gridValues) state.gridValues = {};
+            if (!state.carryStates) state.carryStates = {};
+            state.gridValues[inp.id] = inp.value;
+            state.carryStates[inp.id] = inp.classList.contains('used');
+        });
+        state.addCarryValues = {};
+        for(let i=0; i<5; i++) {
+            const el = document.getElementById(`ac_${i}`);
+            if(el && el.innerText) {
+                if (!state.addCarryValues) state.addCarryValues = {};
+                state.addCarryValues[`ac_${i}`] = el.innerText;
+            }
+        }
+        saveProfile();
+        saveGameState();
+    }
+
+    function restoreGridState() {
+        const gVals = state.gridValues || {};
+        const cStates = state.carryStates || {};
+        const acVals = state.addCarryValues || {};
+
+        for (const [id, val] of Object.entries(gVals)) {
+            const el = document.getElementById(id); if (el) el.value = val;
+        }
+        for (const [id, isUsed] of Object.entries(cStates)) {
+            const el = document.getElementById(id); if (el && isUsed) el.classList.add('used');
+        }
+        for (const [id, val] of Object.entries(acVals)) {
+            const el = document.getElementById(id); if (el) el.innerText = val;
+        }
+        
+        if(state.currentGameUsedHint) {
+            document.querySelectorAll('.input-cell').forEach(inp => {
+                inp.readOnly = true;
+                inp.disabled = false;
+            });
+            for(let r=1; r<=3; r++) {
+                const btn = document.getElementById(`btn_row_${r}`);
+                if(btn) btn.style.visibility = 'hidden';
+            }
+            document.getElementById('hintBtn').disabled = false;
+            if(checkAllFilledForHint()) {
+                document.getElementById('newQBtn').classList.remove('btn-hidden');
+            }
+        } else {
+            for(let r=1; r<=3; r++) {
+                const inputs = document.querySelectorAll(`input[id^="inp_${r}_"]`);
+                let hasVal = false; inputs.forEach(i => { if(i.value) hasVal = true; });
+                if(hasVal) validateRow(r, true);
+            }
+        }
+        
+        checkCarryFilled();
+        checkRowFilled(1); checkRowFilled(2); checkRowFilled(3);
+    }
+    
+    function checkAllFilledForHint() {
+         const lastRowInputs = document.querySelectorAll(`input[id^="inp_3_"]`);
+         return lastRowInputs.length > 0 && Array.from(lastRowInputs).every(i => i.value !== "");
+    }
+
+    function showScreen(id) {
+        const screens = ['screen-register', 'screen-game', 'screen-report', 'screen-assistant', 'portal-submitting-screen'];
+        screens.forEach(s => {
+            const el = document.getElementById(s);
+            if (el) {
+                el.classList.remove('active');
+                el.style.display = '';
+            }
+        });
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.add('active');
+            target.style.display = '';
+        }
+        const carryBox = document.getElementById('carryOverBox');
+        if (carryBox) {
+            carryBox.style.display = (id === 'screen-game') ? 'flex' : 'none';
+        }
+    }
+
+    function updateStats() {
+        const starsEl = document.getElementById('dispStars');
+        const nameEl = document.getElementById('dispName');
+        if(starsEl) starsEl.innerText = toPersianNum(state.stars);
+        if(nameEl) nameEl.innerText = state.name;
+    }
+
+    function generateRandom2Digit() { 
+        return Math.floor(Math.random() * 90) + 10; 
+    }
+
+    function newQuestion() {
+        updateStats();
+        
+        const n1 = generateRandom2Digit();
+        const n2 = generateRandom2Digit();
+        const r1Val = n1 * parseInt(n2.toString()[1]);
+        const r2Val = n1 * parseInt(n2.toString()[0]);
+        const sumVal = n1 * n2;
+
+        state.currentProblem = { 
+            n1, n2, 
+            row1Len: (r1Val === 0) ? 2 : r1Val.toString().length,
+            row2Len: (r2Val === 0) ? 3 : (r2Val * 10).toString().length,
+            sumLen: sumVal.toString().length
+        };
+        state.currentGameUsedHint = false;
+        state.reportSent = false;
+        state.gridValues = {}; state.carryStates = {}; state.addCarryValues = {};
+        lastFocusedInputId = null; 
+        
+        saveGameState();
+        saveProfile();
+        
+        renderGrid(state.currentProblem);
+        resetCarryOver(); 
+        document.getElementById('finishBtn').classList.add('btn-hidden');
+        document.getElementById('newQBtn').classList.add('btn-hidden'); 
+        document.getElementById('hintBtn').disabled = false;
+        document.getElementById('hintAlertBox').style.display = 'none';
+    }
+
+    function resetCarryOver() {
+        document.querySelectorAll('.carry-input').forEach(inp => {
+            if (inp) {
+                inp.value = ''; inp.classList.remove('used', 'active-carry');
+            }
+        });
+        const btn = document.getElementById('clearCarryBtn');
+        if (btn) btn.classList.add('btn-hidden'); 
+        saveGridState();
+    }
+    
+    function checkCarryFilled() {
+        const boxes = document.querySelectorAll('.carry-input');
+        let filledCount = 0;
+        boxes.forEach(inp => { if (inp && inp.value) filledCount++; });
+        const btn = document.getElementById('clearCarryBtn');
+        if (btn) {
+            if (filledCount > 0) btn.classList.remove('btn-hidden');
+            else btn.classList.add('btn-hidden');
+        }
+    }
+
+    function handleCarryInput(el) {
+        if(el && el.value) {
+            let engVal = toEnglishNum(el.value);
+            el.value = !isNaN(engVal) ? toPersianNum(engVal) : "";
+        }
+        checkCarryFilled(); 
+        saveGridState();
+        returnFocusToGrid(); 
+    }
+
+    function toggleStrike(el) { 
+        if(el && el.value) {
+            el.classList.toggle('used');
+            el.classList.remove('active-carry'); 
+            checkCarryFilled(); 
+            saveGridState();
+            returnFocusToGrid(); 
+        }
+    }
+
+    function renderGrid(problem) {
+        const container = document.getElementById('game-area');
+        const n1Str = problem.n1.toString();
+        const n2Str = problem.n2.toString();
+        
+        let html = '<div class="math-grid">';
+        
+        html += `<div class="cell"></div><div class="cell"></div><div class="cell"></div>`;
+        html += `<div class="cell" id="q_top_0">${toPersianNum(n1Str[0])}</div>`; 
+        html += `<div class="cell" id="q_top_1">${toPersianNum(n1Str[1])}</div>`; 
+        html += `<div class="cell"></div>`;
+
+        html += `<div class="operator">×</div>`;
+        html += `<div class="cell"></div><div class="cell"></div>`;
+        html += `<div class="cell" id="q_bot_0">${toPersianNum(n2Str[0])}</div>`;
+        html += `<div class="cell" id="q_bot_1">${toPersianNum(n2Str[1])}</div>`;
+        html += `<div class="cell"></div>`;
+
+        html += `<div class="line"></div>`;
+
+        for(let i=0; i<5; i++) { html += `<div id="ac_${i}" class="add-carry-cell"></div>`; }
+        html += `<div class="cell"></div>`;
+
+        for(let i=0; i<5; i++) { if (i > (4 - problem.row1Len)) html += createInput(1, i); else html += `<div class="cell"></div>`; }
+        html += createRowBtn(1);
+        
+        html += `<div class="operator">+</div>`;
+        for(let i=1; i<5; i++) { if (i > (4 - problem.row2Len)) html += createInput(2, i); else html += `<div class="cell"></div>`; }
+        html += createRowBtn(2);
+        
+        html += `<div class="line"></div>`;
+        for(let i=0; i<5; i++) { if (i > (4 - problem.sumLen)) html += createInput(3, i); else html += `<div class="cell"></div>`; }
+        html += createRowBtn(3);
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function createInput(row, col) { 
+        return `<input type="tel" inputmode="numeric" class="input-cell" id="inp_${row}_${col}" maxlength="1" oninput="handleInput(this, ${row})" onkeydown="handleKeyDown(event, this, ${row})" onclick="clearIfWrong(this)" onfocus="setLastFocus(this)">`; 
+    }
+    
+    function handleKeyDown(e, el, rowIdx) {
+        if (e.key === 'Backspace') {
+            if (el.value === "") {
+                const parts = el.id.split('_');
+                const currentCol = parseInt(parts[2]);
+                const prevCol = currentCol + 1; 
+                const prevInput = document.getElementById(`inp_${rowIdx}_${prevCol}`);
+                if (prevInput && !prevInput.disabled && !prevInput.readOnly) {
+                    e.preventDefault();
+                    prevInput.focus();
+                    prevInput.value = ""; 
+                    prevInput.classList.remove('correct-input', 'wrong-input');
+                    const btn = document.getElementById(`btn_row_${rowIdx}`);
+                    if(btn && btn.innerText === "پاک‌کن") resetBtnToCheck(btn, rowIdx);
+                    saveGridState();
+                }
+            }
+        }
+    }
+
+    function clearIfWrong(el) {
+        if(el.readOnly) return; 
+        if(el.classList.contains('wrong-input')) {
+            el.value = "";
+            el.classList.remove('wrong-input');
+        }
+    }
+
+    function createRowBtn(rowIdx) { 
+        return `<div class="cell"><button id="btn_row_${rowIdx}" class="btn row-check-btn" onclick="validateRow(${rowIdx})">بررسی</button></div>`; 
+    }
+
+    function handleInput(el, rowIdx) {
+        if(el.readOnly) return; 
+        if(el.value) { 
+            let engVal = toEnglishNum(el.value); 
+            el.value = !isNaN(engVal) ? toPersianNum(engVal) : ""; 
+            
+            if(el.value.length === 1) {
+                const parts = el.id.split('_');
+                const currentCol = parseInt(parts[2]);
+                const nextCol = currentCol - 1; 
+                const nextInput = document.getElementById(`inp_${rowIdx}_${nextCol}`);
+                if(nextInput && !nextInput.disabled && !nextInput.readOnly) {
+                    nextInput.focus();
+                }
+            }
+        }
+        el.classList.remove('correct-input', 'wrong-input');
+        const btn = document.getElementById(`btn_row_${rowIdx}`);
+        if(btn && btn.innerText === "پاک‌کن") resetBtnToCheck(btn, rowIdx);
+        checkRowFilled(rowIdx); saveGridState();
+    }
+
+    function resetBtnToCheck(btn, rowIdx) {
+        btn.innerText = "بررسی"; btn.classList.remove('btn-eraser');
+        btn.onclick = function() { validateRow(rowIdx); };
+    }
+
+    function checkRowFilled(rowIdx) {
+        const inputs = document.querySelectorAll(`input[id^="inp_${rowIdx}_"]:not([disabled])`); 
+        if(inputs.length === 0) return; 
+        let allFilled = true; inputs.forEach(inp => { if(inp.value === "") allFilled = false; });
+        const btn = document.getElementById(`btn_row_${rowIdx}`);
+        if (btn) {
+            if(inputs[0].disabled) btn.style.visibility = 'hidden'; else btn.style.visibility = allFilled ? "visible" : "hidden";
+        }
+    }
+
+    function getRowExpectedValue(rowIdx) {
+        const p = state.currentProblem; const n2_str = p.n2.toString();
+        switch(rowIdx) {
+            case 1: return p.n1 * parseInt(n2_str[1]);
+            case 2: return p.n1 * parseInt(n2_str[0]) * 10;
+            case 3: return p.n1 * p.n2;
+        } return 0;
+    }
+
+    function validateRow(rowIdx, silent = false) {
+        const expectedVal = getRowExpectedValue(rowIdx);
+        let expectedStr = expectedVal.toString();
+        while(expectedStr.length < 5) expectedStr = "0" + expectedStr;
+        let rowIsCorrect = true;
+        document.querySelectorAll(`input[id^="inp_${rowIdx}_"]`).forEach(inp => {
+            const col = parseInt(inp.id.split('_')[2]);
+            if(toEnglishNum(inp.value) == expectedStr[col]) { inp.classList.add('correct-input'); inp.classList.remove('wrong-input'); }
+            else { 
+                if(inp.value !== "") { inp.classList.add('wrong-input'); inp.classList.remove('correct-input'); rowIsCorrect = false; }
+                else { rowIsCorrect = false; }
+            }
+        });
+        const btn = document.getElementById(`btn_row_${rowIdx}`);
+        if (rowIsCorrect) {
+            if (btn) btn.style.visibility = 'hidden';
+            document.querySelectorAll(`input[id^="inp_${rowIdx}_"]`).forEach(inp => inp.disabled = true);
+            if(rowIdx === 3) {
+                document.getElementById('finishBtn').classList.remove('btn-hidden');
+            }
+        } else if (!silent) {
+            if (btn) {
+                btn.innerText = "پاک‌کن"; btn.classList.add('btn-eraser');
+                btn.onclick = function() { 
+                    document.querySelectorAll(`input[id^="inp_${rowIdx}_"]`).forEach(i => {
+                        i.value = ""; 
+                        i.classList.remove('wrong-input', 'correct-input');
+                    }); 
+                    saveGridState(); resetBtnToCheck(btn, rowIdx); 
+                };
+            }
+        }
+        return rowIsCorrect;
+    }
+
+    function clearHighlights() { 
+        document.querySelectorAll('.highlight-digit').forEach(el => el.classList.remove('highlight-digit')); 
+        document.querySelectorAll('.col-highlight').forEach(el => el.classList.remove('col-highlight')); 
+    }
+
+    function setCarryInBox(val) {
+        const boxes = [document.getElementById('carry_0'), document.getElementById('carry_1'), document.getElementById('carry_2')];
+        let targetBox = null;
+        for(let box of boxes) {
+            if (box && !box.value) { targetBox = box; break; }
+        }
+        if (targetBox) {
+            targetBox.value = toPersianNum(val);
+            targetBox.classList.remove('used'); targetBox.classList.add('active-carry'); 
+            flashElement(targetBox); 
+            checkCarryFilled(); saveGridState(); 
+        }
+    }
+
+    function markCarryUsed(val) {
+        const boxes = [document.getElementById('carry_0'), document.getElementById('carry_1'), document.getElementById('carry_2')];
+        for(let box of boxes) {
+            if(box && box.value && toEnglishNum(box.value) == val && !box.classList.contains('used')) {
+                box.classList.add('used'); box.classList.remove('active-carry');
+                checkCarryFilled(); saveGridState(); return;
+            }
+        }
+    }
+    
+    function flashElement(el) {
+        if(!el) return;
+        el.classList.remove('newly-filled', 'newly-filled-text'); 
+        void el.offsetWidth; 
+        if(el.classList.contains('add-carry-cell')) {
+            el.classList.add('newly-filled-text');
+        } else {
+            el.classList.add('newly-filled');
+        }
+    }
+
+    function revealOneStepHint() {
+        try {
+            if (state.currentGameUsedHint) {
+                executeHintLogic();
+            } else {
+                const modal = document.getElementById('confirmModal');
+                if (modal) {
+                    modal.style.display = 'flex';
+                } else {
+                    startPracticeMode();
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('confirmModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function startPracticeMode() {
+        try {
+            closeModal();
+            state.currentGameUsedHint = true;
+            
+            document.querySelectorAll('.input-cell').forEach(inp => {
+                if (inp) {
+                    inp.value = '';
+                    inp.classList.remove('correct-input', 'wrong-input');
+                    inp.disabled = false;
+                    inp.readOnly = true; 
+                }
+            });
+            
+            for(let r=1; r<=3; r++) {
+                 const btn = document.getElementById(`btn_row_${r}`);
+                 if (btn) resetBtnToCheck(btn, r);
+                 if (btn) btn.style.visibility = 'hidden';
+            }
+            
+            resetCarryOver();
+            document.querySelectorAll('.add-carry-cell').forEach(el => {
+                if (el) el.innerText = '';
+            });
+
+            state.gridValues = {};
+            state.carryStates = {};
+            state.addCarryValues = {};
+            saveProfile();
+            saveGameState();
+            
+            executeHintLogic();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function executeHintLogic() {
+        try {
+            clearHighlights();
+            const p = state.currentProblem;
+            if (!p) {
+                newQuestion();
+                return;
+            }
+            const n1Str = p.n1.toString();
+            const n2Str = p.n2.toString();
+
+            for(let r=1; r<=3; r++) {
+                const inputs = Array.from(document.querySelectorAll(`input[id^="inp_${r}_"]`));
+                inputs.sort((a,b) => parseInt(b.id.split('_')[2]) - parseInt(a.id.split('_')[2])); 
+
+                if(inputs.length > 0 && inputs[0].disabled) continue;
+
+                if(r === 2) {
+                    const zInp = document.getElementById(`inp_2_4`);
+                    if(zInp && !zInp.value) {
+                        resetCarryOver(); 
+                        zInp.value = toPersianNum(0); zInp.classList.add('correct-input');
+                        flashElement(zInp);
+                        showHintAlert("چون داری دهگان رو ضرب می‌کنی، اول یه دونه صفر خوشگل بذار اینجا! (جعبه‌ی انتقال هم پاک شد)");
+                        saveGridState(); checkRowFilled(r); return;
+                    }
+                }
+                
+                if(r <= 2) {
+                    if(r === 1 && inputs.every(inp => inp && inp.value === "")) resetCarryOver();
+                    
+                    const multiplierDigit = parseInt(n2Str[2-r]);
+                    const multiplierPlace = r===1 ? "یکان" : "دهگان";
+                    
+                    let currentCarry = 0;
+                    let shift = (r-1); 
+                    
+                    for(let step=0; step<2; step++) { 
+                        const topDigit = parseInt(n1Str[1-step]);
+                        const topPlace = step===0 ? "یکان" : "دهگان";
+                        
+                        if (step > 0) {
+                             const carryBoxes = [document.getElementById('carry_0'), document.getElementById('carry_1'), document.getElementById('carry_2')];
+                             const availableCarry = Array.from(carryBoxes).find(b => b && b.value && !b.classList.contains('used'));
+                             if(availableCarry) { currentCarry = parseInt(toEnglishNum(availableCarry.value)); }
+                        }
+                        
+                        const product = (topDigit * multiplierDigit) + currentCarry;
+                        const writeDigit = product % 10;
+                        const newCarry = Math.floor(product / 10);
+                        
+                        const targetCol = 4 - shift - step; 
+                        const inp = document.getElementById(`inp_${r}_${targetCol}`);
+                        
+                        if(inp && (inp.value === "" || inp.classList.contains('wrong-input'))) {
+                            const qBot = document.getElementById(`q_bot_${2-r}`);
+                            const qTop = document.getElementById(`q_top_${1-step}`);
+                            if (qBot) qBot.classList.add('highlight-digit');
+                            if (qTop) qTop.classList.add('highlight-digit');
+
+                            let msg = `<b>${toPersianNum(multiplierDigit)}</b> در <b>${toPersianNum(topDigit)}</b> می‌شه <b>${toPersianNum(topDigit*multiplierDigit)}</b>`;
+                            
+                            if(currentCarry > 0) {
+                                msg += `، با <b>${toPersianNum(currentCarry)}</b> انتقال می‌شه <b>${toPersianNum(product)}</b>`;
+                                markCarryUsed(currentCarry);
+                            }
+                            msg += `.`;
+                            
+                            if(step === 1 && newCarry > 0) {
+                                const carryInp = document.getElementById(`inp_${r}_${targetCol-1}`);
+                                if(carryInp) {
+                                    inp.value = toPersianNum(writeDigit); inp.classList.add('correct-input'); flashElement(inp);
+                                    carryInp.value = toPersianNum(newCarry); carryInp.classList.add('correct-input'); flashElement(carryInp);
+                                    msg += `<br>چون رقم آخره، کل عدد <b>${toPersianNum(product)}</b> رو کامل می‌نویسیم.`;
+                                } else { inp.value = toPersianNum(writeDigit); flashElement(inp); }
+                            } else {
+                                inp.value = toPersianNum(writeDigit); inp.classList.add('correct-input'); flashElement(inp);
+                                if(newCarry > 0) {
+                                    msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم، <b>${toPersianNum(newCarry)}</b> رو می‌بریم بالا.`;
+                                    setCarryInBox(newCarry);
+                                } else { msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم.`; }
+                            }
+                            showHintAlert(msg); saveGridState(); checkRowFilled(r); return;
+                        }
+                        currentCarry = newCarry;
+                    }
+                } else {
+                     let pendingCarry = 0;
+                     for(let i=4; i>=0; i--) {
+                         const inp1 = document.getElementById(`inp_1_${i}`);
+                         const inp2 = document.getElementById(`inp_2_${i}`);
+                         
+                         const val1 = inp1 && inp1.value ? parseInt(toEnglishNum(inp1.value)) : 0;
+                         const val2 = inp2 && inp2.value ? parseInt(toEnglishNum(inp2.value)) : 0;
+                         
+                         const sum = val1 + val2 + pendingCarry;
+                         const writeDigit = sum % 10;
+                         const newCarry = Math.floor(sum / 10);
+                         
+                         const resultInp = document.getElementById(`inp_3_${i}`);
+                         
+                         if(resultInp && (resultInp.value === "" || resultInp.classList.contains('wrong-input'))) {
+                             if(inp1) inp1.parentElement.classList.add('col-highlight');
+                             if(inp2) inp2.parentElement.classList.add('col-highlight');
+                             
+                             resultInp.value = toPersianNum(writeDigit);
+                             resultInp.classList.add('correct-input');
+                             flashElement(resultInp);
+                             
+                             let msg = `جمع ستون: <b>${toPersianNum(val1)}</b> + <b>${toPersianNum(val2)}</b>`;
+                             if(pendingCarry > 0) msg += ` + <b>${toPersianNum(pendingCarry)}</b> (انتقال)`;
+                             msg += ` می‌شه <b>${toPersianNum(sum)}</b>.`;
+                             
+                             if(newCarry > 0) {
+                                 msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم، <b>${toPersianNum(newCarry)}</b> رو می‌بریم بالا.`;
+                                 const carryCell = document.getElementById(`ac_${i-1}`);
+                                 if(carryCell) {
+                                     carryCell.innerText = toPersianNum(newCarry);
+                                     flashElement(carryCell);
+                                 }
+                             } else {
+                                 msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم.`;
+                             }
+                             
+                             showHintAlert(msg);
+                             saveGridState(); checkRowFilled(3);
+                             return;
+                         }
+                         pendingCarry = newCarry;
+                     }
+                }
+            }
+            showHintAlert("فوق‌العاده‌ای قهرمانم! همه‌ی مراحل رو کاملاً درست حل کردی! 🌟");
+            const finBtn = document.getElementById('finishBtn');
+            if (finBtn) finBtn.classList.remove('btn-hidden');
+        } catch (errHint) {
+            console.error(errHint);
+        }
+    }
+
+    function showHintAlert(msg) {
+        const box = document.getElementById('hintAlertBox');
+        if (box) {
+            box.innerHTML = msg; box.style.display = 'block';
+        }
+    }
+
+    async function finishSession() {
+        const earnedThisGame = state.currentGameUsedHint ? 0 : 1;
+        
+        state.totalPlays = state.totalPlays + 1;
+        if (earnedThisGame === 1) {
+            state.stars = state.stars + 1;
+        }
+        state.currentScreen = 'report';
+        
+        state.gridValues = {}; 
+        state.carryStates = {}; 
+        state.addCarryValues = {};
+        
+        clearGameState();
+        saveProfile();
+
+        showScreen('portal-submitting-screen');
+        await Portal.submitProgress(earnedThisGame, {
+            onSuccess: (data) => {
+                state.totalPlays = data.plays;
+                state.stars = data.stars;
+                saveProfile();
+                updateStats();
+                showScreen('screen-report');
+                renderReport(data.goalReached, data.stars);
+            },
+            onFailure: (err) => {
+            }
+        });
+    }
+
+    function renderReport(goalReached, currentStars) {
+        const stars = currentStars;
+        const games = state.totalPlays;
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const dateTimeStr = toPersianNum(dateStr) + ' ' + toPersianNum(timeStr);
+
+        document.getElementById('repName').innerText = state.name;
+        document.getElementById('repDate').innerText = dateTimeStr;
+        document.getElementById('repPlays').innerText = toPersianNum(games);
+        document.getElementById('repStars').innerText = toPersianNum(stars);
+
+        const repReqStarsRow = document.getElementById('portal-req-stars-row');
+        if (repReqStarsRow) {
+            repReqStarsRow.style.display = 'block';
+            document.getElementById('repReqStars').innerText = toPersianNum(Portal.requiredStars) + ' ⭐';
+        }
+
+        const goalBadge = document.getElementById('portal-goal-reached-badge');
+        const submitBadge = document.getElementById('portal-submit-badge');
+        const backInstruction = document.getElementById('portal-back-instruction');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+
+        goalBadge.style.display = 'none';
+        submitBadge.style.display = 'none';
+        backInstruction.style.display = 'none';
+        playAgainBtn.style.display = 'block';
+
+        if (state.currentGameUsedHint) {
+            playAgainBtn.innerText = "بازی دوباره بدون کمک 💡";
+            backInstruction.innerHTML = `
+                <div style="background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:12px; border-radius:12px; margin-top:10px; font-size:11.5pt; line-height:1.6; text-align:center;">
+                    💡 این دور بازی‌ات آموزشی بود و برای گرفتن ستاره باید بدون کمک حلش کنی. دکمه پایین رو بزن تا بدون کمک تلاش کنی!
+                </div>
+            `;
+            backInstruction.style.display = 'block';
+        } else if (goalReached) {
+            goalBadge.style.display = 'block';
+            playAgainBtn.style.display = 'none';
+            backInstruction.innerHTML = `
+                <div style="background:#e8f5e9; border:1px solid #2e7d32; color:#1b5e20; padding:15px; border-radius:12px; margin-top:10px; font-weight:bold; font-size:12pt; line-height:1.6; text-align:center;">
+                    📱 آفرین! تکلیف با موفقیت تکمیل شد.<br>
+                    حالا با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال کلاس برگرد.
+                </div>
+            `;
+            backInstruction.style.display = 'block';
+        } else {
+            const remaining = Portal.requiredStars - stars;
+            submitBadge.innerHTML = `✨ آفرین دانش‌آموز زرنگم! تو <b>${toPersianNum(stars)}</b> ستاره از <b>${toPersianNum(Portal.requiredStars)}</b> ستاره‌ی این تکلیف رو گرفتی! ⭐ فقط به <b>${toPersianNum(remaining)}</b> ستاره‌ی دیگه نیاز داری تا تیک تکلیف بخوره. بدو برو بعدی رو حل کن! 🏆`;
+            submitBadge.style.display = 'block';
+            playAgainBtn.innerText = "گرفتن ستاره بیشتر 🎮";
+            backInstruction.innerHTML = `
+                <div style="background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:12px; border-radius:12px; margin-top:10px; font-size:11.5pt; line-height:1.6; text-align:center;">
+                    💡 اگر می‌خواهی بعداً بازی کنی، با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال برگرد.
+                </div>
+            `;
+            backInstruction.style.display = 'block';
+        }
+    }
+
+    function restartGame() { 
+        state.currentScreen = 'game';
+        saveProfile();
+        showScreen('screen-game'); 
+        updateStats(); 
+        newQuestion(); 
+    }
+
+    function toEnglishNum(str) { 
+        if(!str) return 0;
+        return parseInt(str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))) || 0; 
+    }
+    
+    function toPersianNum(num) { 
+        if (num === undefined || num === null) return '';
+        return num.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]); 
+    }
+
+    function checkSavedUnfinishedState() {
+        try {
+            const saved = localStorage.getItem(GAME_STATE_STORAGE);
+            if (saved) {
+                const d = JSON.parse(saved);
+                if (d && d.currentProblem) return d;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function saveGameState() {
+        localStorage.setItem(GAME_STATE_STORAGE, JSON.stringify({
+            currentProblem: state.currentProblem,
+            gridValues: state.gridValues || {},
+            carryStates: state.carryStates || {},
+            addCarryValues: state.addCarryValues || {},
+            currentGameUsedHint: state.currentGameUsedHint
+        }));
+    }
+
+    function loadState() {
+        const saved = localStorage.getItem(GAME_STATE_STORAGE);
+        if (saved) {
+            try {
+                const d = JSON.parse(saved);
+                if (d && typeof d === 'object') {
+                    state.currentProblem = d.currentProblem || null;
+                    state.gridValues = d.gridValues || {};
+                    state.carryStates = d.carryStates || {};
+                    state.addCarryValues = d.addCarryValues || {};
+                    state.currentGameUsedHint = d.currentGameUsedHint || false;
+                }
+            } catch (e) {}
+        }
+    }
+
+    function clearGameState() {
+        localStorage.removeItem(GAME_STATE_STORAGE);
+    }
+
+    window.submitAssistantStar = async function() {
+        showScreen('portal-submitting-screen');
+        await Portal.submitProgress(null, {
+            onSuccess: (data) => { authenticatePortalStudent(); },
+            onFailure: (err) => {}
+        });
+    };
+
+    window.retryAuthentication = function() {
+        authenticatePortalStudent();
+    };
+
+    async function authenticatePortalStudent() {
+        await Portal.authenticate({
+            onSuccess: (data) => {
+                try {
+                    document.getElementById('portal-welcome-section').style.display = '';
+                    document.getElementById('startGame').style.display = '';
+                    document.getElementById('portal-error-section').style.display = 'none';
+
+                    STORAGE = `studentProfile_Zarb2x2_${Portal.studentId}_${Portal.homeworkId}`;
+                    GAME_STATE_STORAGE = `gameState_Zarb2x2_${Portal.studentId}_${Portal.homeworkId}`;
+                    
+                    const saved = localStorage.getItem(STORAGE);
+                    let parsedState = null;
+                    if (saved) {
+                        try {
+                            parsedState = JSON.parse(saved);
+                        } catch (e) {}
+                    }
+
+                    if (parsedState && typeof parsedState === 'object') {
+                        state = parsedState;
+                        if (!state.gridValues) state.gridValues = {};
+                        if (!state.carryStates) state.carryStates = {};
+                        if (!state.addCarryValues) state.addCarryValues = {};
+                        if (typeof state.currentGameUsedHint === 'undefined') state.currentGameUsedHint = false;
+                        if (typeof state.currentScreen === 'undefined') state.currentScreen = 'register';
+                    } else {
+                        state = {
+                            name: data.name,
+                            stars: data.stars,
+                            totalPlays: data.plays,
+                            currentProblem: null,
+                            currentGameUsedHint: false,
+                            reportSent: false,
+                            gridValues: {},
+                            carryStates: {},
+                            addCarryValues: {},
+                            currentScreen: 'register'
+                        };
+                    }
+                    
+                    state.name = data.name || Portal.studentName || state.name || "دانش‌آموز";
+                    state.totalPlays = data.plays !== undefined ? data.plays : state.totalPlays;
+                    state.stars = data.stars !== undefined ? data.stars : state.stars;
+                    
+                    saveProfile();
+                    updateStats();
+
+                    document.getElementById('portal-student-name').textContent = state.name;
+                    document.getElementById('portal-prev-plays').textContent = toPersianNum(state.totalPlays);
+                    document.getElementById('portal-prev-stars').textContent = toPersianNum(state.stars) + ' ⭐';
+                    document.getElementById('portal-req-stars').textContent = toPersianNum(Portal.requiredStars) + ' ⭐';
+
+                    const activeState = checkSavedUnfinishedState();
+                    const startBtn = document.getElementById('startGame');
+                    if (activeState) {
+                        startBtn.textContent = 'ادامه بازی (باقیمانده) 🔄';
+                        startBtn.style.backgroundColor = '#ff9800';
+                    } else {
+                        startBtn.textContent = 'شروع بازی تکلیف 🎮';
+                        startBtn.style.backgroundColor = '#2ecc71';
+                    }
+
+                    const needsSubmitKey = `portal_needs_submit_${Portal.gameId}_${Portal.studentId}_${Portal.homeworkId}`;
+                    const hasUnsentStar = localStorage.getItem(needsSubmitKey) === 'true';
+
+                    if (hasUnsentStar) {
+                        document.getElementById('ast-welcome').textContent = `سلام ${state.name} عزیز! 🌟`;
+                        document.getElementById('ast-name').textContent = state.name;
+                        document.getElementById('ast-stars').textContent = toPersianNum(state.stars) + ' ⭐';
+                        document.getElementById('ast-req-stars').textContent = toPersianNum(Portal.requiredStars) + ' ⭐';
+                        showScreen('screen-assistant');
+                    } else if (state.currentScreen === 'report') {
+                        showScreen('screen-report');
+                        renderReport(state.stars >= Portal.requiredStars, state.stars);
+                    } else if (state.currentProblem && activeState) {
+                        try {
+                            showScreen('screen-game');
+                            loadState();
+                            renderGrid(state.currentProblem);
+                            restoreGridState();
+                        } catch (ex) {
+                            clearGameState();
+                            state.currentProblem = null;
+                            state.currentScreen = 'register';
+                            saveProfile();
+                            showScreen('screen-register');
+                        }
+                    } else {
+                        showScreen('screen-register');
+                    }
+                } catch (errGlobal) {
+                    showScreen('screen-register');
+                    document.getElementById('portal-welcome-section').style.display = 'none';
+                    document.getElementById('startGame').style.display = 'none';
+                    document.getElementById('portal-error-section').style.display = 'block';
+                }
+            },
+            onFailure: (err) => {
+                showScreen('screen-register');
+                document.getElementById('portal-welcome-section').style.display = 'none';
+                document.getElementById('startGame').style.display = 'none';
+                document.getElementById('portal-error-section').style.display = 'block';
+                const regScreen = document.getElementById('screen-register');
+                if (regScreen) regScreen.classList.remove('hidden');
+            },
+            onGuestMode: () => {
+                showScreen('screen-register');
+                document.getElementById('portal-welcome-section').style.display = 'none';
+                document.getElementById('startGame').style.display = 'none';
+                document.getElementById('portal-error-title').textContent = 'لینک ورود نامعتبر است';
+                document.getElementById('portal-error-desc').textContent = 'جهت انجام این تکلیف، حتماً باید از طریق پنل مدرسه و با لینک اختصاصی خودت وارد بشی.';
+                document.getElementById('portal-retry-auth-btn').style.display = 'none';
+                document.getElementById('portal-error-section').style.display = 'block';
+                const regScreen = document.getElementById('screen-register');
+                if (regScreen) regScreen.classList.remove('hidden');
+            }
+        });
+    }
+
+    document.getElementById('startGame').onclick = () => {
+        try {
+            state.currentGameUsedHint = false;
+            state.currentScreen = 'game';
+            const activeState = checkSavedUnfinishedState();
+            if (activeState) {
+                loadState();
+                renderGrid(state.currentProblem);
+                restoreGridState();
+            } else {
+                newQuestion();
+            }
+            showScreen('screen-game');
+            updateStats();
+            saveProfile();
+        } catch (e) {
+            clearGameState();
+            state.currentProblem = null;
+            state.currentScreen = 'game';
+            saveProfile();
+            newQuestion();
+            showScreen('screen-game');
+            updateStats();
+            saveProfile();
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('beforeunload', saveProfile);
+        authenticatePortalStudent();
+
+        if ('serviceWorker' in navigator) {
+            const hadExistingController = !!navigator.serviceWorker.controller;
+            navigator.serviceWorker.register('sw.js');
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing && hadExistingController) {
+                    window.location.reload();
+                    refreshing = true;
+                }
+            });
+        }
+    });
+</script>
+</body>
+</html>
