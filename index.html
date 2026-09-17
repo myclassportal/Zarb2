@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>بازی ضرب دو رقم در دو رقم</title>
+    <title>ضرب دو رقم در دو رقم</title>
     <script src="supabase.js" defer></script>
     <script src="game-db.js" defer></script>
+    <script src="game-audio.js" defer></script>
     <style>
         @font-face {
             font-family: 'Vazirmatn';
@@ -39,10 +40,12 @@
             background-color: var(--bg);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             color: var(--primary);
-            padding: 10px;
+            padding: 15px 10px 80px 10px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             -webkit-tap-highlight-color: transparent;
         }
         .screen {
@@ -69,6 +72,7 @@
             max-width: 600px;
             text-align: center;
             position: relative;
+            margin: 0 auto;
         }
         h1, h2 {
             margin-bottom: 10px;
@@ -131,7 +135,10 @@
             cursor: pointer;
             margin: 5px;
             font-weight: bold;
+            transition: 0.2s;
         }
+        .btn:active { transform: translateY(2px); box-shadow: none; }
+        .btn[disabled] { background: #bdc3c7 !important; cursor: not-allowed !important; box-shadow: none !important; opacity: 0.6 !important; }
         .btn-secondary {
             background-color: #e67e22;
         }
@@ -191,9 +198,18 @@
             }
         }
         .cell{display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:bold;transition:all 0.3s;border-radius:50%;width:38px;height:38px;}
-        .add-carry-cell{display:flex;align-items:flex-end;justify-content:center;font-size:1em;font-weight:bold;color:var(--carry-red);height:20px;width:100%;margin-bottom:-8px;z-index:10;}
+        .add-carry-cell{display:flex;align-items:flex-end;justify-content:center;font-size:1em;font-weight:bold;color:var(--carry-red);height:20px;width:100%;margin-bottom:-8px;z-index:10;transition:all 0.3s;}
         .highlight-digit{background-color:#ffe082;color:#d35400;border:2px solid #f39c12;transform:scale(1.1);}
-        .col-highlight{background-color:#e3f2fd;border-radius:4px;}
+        @keyframes col-pulse {
+            0% { background-color: #e3f2fd; box-shadow: 0 0 0 2px #2196f3; }
+            50% { background-color: #bbdefb; box-shadow: 0 0 8px 3px rgba(33, 150, 243, 0.6); }
+            100% { background-color: #e3f2fd; box-shadow: 0 0 0 2px #2196f3; }
+        }
+        .col-highlight {
+            animation: col-pulse 1.2s infinite ease-in-out !important;
+            border-radius: 6px !important;
+            border-color: #2196f3 !important;
+        }
         .input-cell{width:38px;height:38px;font-size:1.3em;text-align:center;border:2px solid #bdc3c7;border-radius:6px;background:#fafafa;padding:0;-moz-appearance:textfield;}
         .input-cell:focus{background:#e8f0fe;border-color:#2980b9;}
         .input-cell:read-only{background:#f0f0f0;color:#555;cursor:default;}
@@ -201,7 +217,11 @@
         .wrong-input{background-color:#f8d7da !important;border-color:var(--wrong) !important;color:var(--wrong);cursor:pointer;}
         .line{grid-column:1/7;height:2px;background-color:#333;margin:4px 0;}
         .operator{grid-column:1/2;display:flex;align-items:center;justify-content:center;font-size:1.4em;color:#555;}
-        .stats-bar{display:flex;justify-content:space-between;background:#ecf0f1;padding:8px 12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;}
+        .stats-bar{display:flex;justify-content:space-between;align-items:center;background:#ecf0f1;padding:8px 12px;border-radius:8px;margin-bottom:15px;font-size:0.9em;}
+        .sound-toggle-btn {
+            background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1;
+            border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; font-family: inherit; font-weight: bold;
+        }
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -292,7 +312,7 @@
     <div class="modal-box">
         <div class="modal-title">⚠️ شروع حالت آموزشی</div>
         <div class="modal-text">
-            آیا مطمئنی قهرمان؟ برای استفاده از راهنمای گام‌به‌گام، تمام پاسخ‌های فعلی‌ات پاک می‌شن و باید به راهنمایی‌ها گوش کنی. این دور فقط برای یادگیریه و ستاره‌ای براش ثبت نمی‌شه.
+            با ورود به راهنمای گام‌به‌گامِ صوتی، راه‌حل مرحله‌به‌مرحله بهت آموزش داده می‌شه. این دور فقط برای یادگیریه و ستاره‌ای ثبت نمی‌شه.
         </div>
         <div class="modal-buttons">
             <button class="btn btn-secondary" onclick="startPracticeMode()">آره، شروع کن</button>
@@ -303,7 +323,7 @@
 
 <div class="container">
     <div class="screen active" id="screen-register">
-        <span class="school-name" id="portal-school-title">دبستان معاد خرگوشی</span>
+        <span class="school-name" id="portal-school-title">---</span>
         
         <div id="register-container">
             <div id="portal-welcome-section">
@@ -312,31 +332,31 @@
                 
                 <div style="display: flex; flex-direction: column; gap: 10px; background: #f8f9fa; border-radius: 10px; padding: 15px; border: 1px dashed #bdc3c7; margin: 15px auto; text-align: right; direction: rtl; font-size: 1rem; width: 100%; max-width: 280px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>👤 نامت:</span>
+                        <span>👤 نام دانش‌آموز:</span>
                         <span id="portal-student-name" style="font-weight:bold; color:#2c3e50;">---</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>🎮 تعداد تلاش‌های قبلی:</span>
+                        <span>🎮 تعداد بازی‌های قبلی:</span>
                         <span id="portal-prev-plays" style="font-weight:bold; color:#e67e22;">۰</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>⭐ ستاره‌های ثبت‌شده:</span>
+                        <span>⭐ ستاره‌های ثبت‌شده‌ی قبلی:</span>
                         <span id="portal-prev-stars" style="font-weight:bold; color:#f39c12;">۰ ⭐</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold; color:#27ae60; border-top:1px dashed #bdc3c7; padding-top:8px; margin-top:5px;">
-                        <span>🎯 ستاره مورد نیاز تکلیف:</span>
+                        <span>🎯 ستاره‌ی مورد نیاز تکلیف:</span>
                         <span id="portal-req-stars">۰ ⭐</span>
                     </div>
                 </div>
             </div>
-            <button id="startGame" style="background:#2ecc71; color:white; padding:12px 20px; border:none; border-radius:10px; cursor:pointer; width:100%; max-width:250px; display:block; margin:20px auto 0; font-weight: bold; font-size: 1.1rem; transition: background 0.3s;">شروع بازی تکلیف 🎮</button>
+            <button id="startGame" style="background:#2ecc71; color:white; padding:12px 20px; border:none; border-radius:10px; cursor:pointer; width:100%; max-width:250px; display:block; margin:20px auto 0; font-weight: bold; font-size: 1.1rem; transition: background 0.3s;">شروع بازیِ تکلیف 🎮</button>
         </div>
 
         <div id="portal-error-section" style="display:none; text-align:center; padding:20px; max-width: 450px; margin: 20px auto; background: white; border-radius: 12px; box-shadow:0 6px 18px rgba(0,0,0,0.12);">
             <div style="font-size:2.5rem; margin-bottom:10px;">⚠️</div>
-            <h3 id="portal-error-title" style="color:#d32f2f; margin-bottom:8px; font-weight:bold; font-size:15pt;">خطا در اتصال به پرتال کلاس</h3>
-            <p id="portal-error-desc" style="color:#555; font-size:12pt; margin-bottom:15px; line-height:1.6;">جهت بارگذاری مشخصات و تکالیفت، اتصال به اینترنت الزامی است. لطفا شبکه‌ات را بررسی کن و مجدداً تلاش کن.</p>
-            <button id="portal-retry-auth-btn" style="background:#1e90ff; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retryAuthentication()">🔄 تلاش مجدد برای اتصال</button>
+            <h3 id="portal-error-title" style="color:#d32f2f; margin-bottom:8px; font-weight:bold; font-size:15pt;">مشکل در اتصال به کلاس!</h3>
+            <p id="portal-error-desc" style="color:#555; font-size:12pt; margin-bottom:15px; line-height:1.6;">برای اینکه بتونی تکالیفت رو ببینی و بازی کنی، باید به اینترنت وصل باشی. لطفاً شبکه‌ی اینترنتت رو بررسی کن و دوباره دکمه‌ی زیر رو بزن.</p>
+            <button id="portal-retry-auth-btn" style="background:#1e90ff; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retryAuthentication()">🔄 تلاش دوباره برای اتصال</button>
         </div>
     </div>
 
@@ -349,8 +369,9 @@
         </div>
 
         <div class="stats-bar">
-            <span id="dispName">دانش‌آموز</span>
-            <span>⭐ ستاره: <span id="dispStars">۰</span></span>
+            <span>👤 <span id="dispName">دانش‌آموز</span></span>
+            <button id="btn-sound-toggle" class="sound-toggle-btn" onclick="toggleAppSound()">🔊 صدا: روشن</button>
+            <span>⭐ <span id="dispStars">۰</span></span>
         </div>
 
         <h2>ضرب دو رقم در دو رقم</h2>
@@ -361,32 +382,33 @@
 
         <div style="margin-top: 20px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
             <button id="hintBtn" class="btn btn-secondary" onclick="revealOneStepHint()">راهنمای گام‌به‌گام 💡</button>
-            <button id="finishBtn" class="btn btn-hidden" style="background:#7f8c8d;" onclick="finishSession()">ثبت امتیاز و مشاهده کارنامه 🏆</button>
-            <button id="newQBtn" class="btn btn-info btn-hidden" onclick="newQuestion()">سوال بعدی 🎮</button>
+            <button id="finishBtn" class="btn btn-hidden" style="background:#7f8c8d;" onclick="finishSession()">ثبت امتیاز و دیدن کارنامه 🏆</button>
+            <button id="newQBtn" class="btn btn-info btn-hidden" onclick="newQuestion()">سؤال بعدی 🎮</button>
         </div>
     </div>
 
     <div class="screen" id="screen-report">
-        <h2>کارنامه درخشانت 🌟</h2>
+        <h2>کارنامه‌ی درخشانت 🌟</h2>
         <div style="text-align: right; background: #fafafa; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 20px;">
-            <p><strong>مدرسه:</strong> <span id="repSchool">دبستان معاد خرگوشی</span></p>
+            <p><strong>نام تمرین:</strong> <span>ضرب دو رقم در دو رقم</span></p>
+            <p><strong>نام مدرسه:</strong> <span id="repSchool">---</span></p>
             <p><strong>نام دانش‌آموز:</strong> <span id="repName">---</span></p>
-            <p><strong>تاریخ و زمان:</strong> <span id="repDate">---</span></p>
-            <p><strong>تعداد تلاش‌ها:</strong> <span id="repPlays">۰</span></p>
-            <p><strong>ستاره‌های گرفته‌شده:</strong> <span id="repStars">۰</span></p>
-            <p id="portal-req-stars-row" style="display:none;"><strong>🎯 ستاره مورد نیاز تکلیف:</strong> <span id="repReqStars">۰ ⭐</span></p>
+            <p><strong>تاریخ و ساعت:</strong> <span id="repDate" style="direction: ltr; display: inline-block;">---</span></p>
+            <p><strong>تعداد کل بازی‌ها:</strong> <span id="repPlays">۰</span></p>
+            <p><strong>تعداد کل ستاره‌ها:</strong> <span id="repStars">۰</span></p>
+            <p id="portal-req-stars-row" style="display:none;"><strong>🎯 ستاره‌ی مورد نیاز تکلیف:</strong> <span id="repReqStars">۰ ⭐</span></p>
         </div>
 
         <div id="portal-submit-badge" style="display:none; background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:15px; border-radius:12px; margin-bottom:12px; font-weight:bold; font-size:12.5pt; line-height:1.6; text-align:right; width: 100%;"></div>
 
         <div id="portal-goal-reached-badge" style="display:none; background:#e8f5e9; border:2px solid #2e7d32; color:#1b5e20; padding:15px; border-radius:12px; margin-bottom:15px; font-weight:bold; font-size:12.5pt; line-height:1.6; direction:rtl; text-align:right; width: 100%;">
-            🎉 هوراااا قهرمان پرتلاش! هدف تکلیف رو کاملاً ترکوندی و همه‌ی ستاره‌های مورد نیاز رو گرفتی! تو فوق‌العاده‌ای! 🥇 حالا می‌تونی با خیال راحت به پرتال برگردی. خداقوت! ❤️
+            🎉 هورا قهرمان پرتلاش! گل کاشتی! همه‌ی ستاره‌های این تکلیف رو گرفتی و عالی درخشیدی! تو فوق‌العاده‌ای! 🥇 حالا می‌تونی با خیال راحت به پرتال کلاس برگردی. ❤️
         </div>
 
         <div id="portal-back-instruction" style="display:none; width: 100%;"></div>
 
         <br>
-        <button id="playAgainBtn" class="btn" onclick="restartGame()">تلاش دوباره 🔄</button>
+        <button id="playAgainBtn" class="btn" onclick="restartGame()">شروع یه بازیِ جدید 🎮</button>
     </div>
 
     <div id="portal-submitting-screen" class="screen" style="background:linear-gradient(135deg,#a1c4fd,#c2e9fb); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
@@ -396,7 +418,7 @@
                 <div id="portal-progress-bar" style="background:linear-gradient(90deg, #ff007f, #aa00ff, #00b0ff); width:0%; height:100%; transition:width 0.2s;"></div>
             </div>
             <p id="portal-submit-status-text" style="font-size:12pt; color:#555; font-weight:bold; line-height:1.6; direction:rtl;"></p>
-            <button id="portal-retry-submit-btn" style="display:none; margin:15px auto 0; background:#e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retrySubmission()">🔄 تلاش مجدد برای ارسال</button>
+            <button id="portal-retry-submit-btn" style="display:none; margin:15px auto 0; background:#e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retrySubmission()">🔄 تلاش دوباره برای ارسال</button>
         </div>
     </div>
 
@@ -405,25 +427,24 @@
         <div style="background: #fff; border: 2px dashed #3498db; border-radius: 12px; padding: 20px; margin-bottom: 25px; line-height: 1.8; text-align: justify; direction: rtl;">
             <span style="font-size: 14pt; font-weight: bold; color: #2c3e50; display: block; margin-bottom: 10px;" id="ast-welcome">سلام قهرمان!</span>
             <p style="font-size: 11pt; color: #333; margin: 0;">
-                بازی قبلی‌ات با موفقیت تمام شده بود، اما به خاطر قطع شدن اینترنت، ستاره‌ی طلایی‌ات به دفتر کلاسی معلم نرسیده بود. 
-                اصلاً نگران نباش! نیازی به بازی دوباره نیست. دکمه زیر را بزن تا ستاره‌ات ثبت بشه و کارنامه‌اش رو ببینی. 😊
+                بازی قبلی‌ات با موفقیت تموم شده بود، اما به خاطر قطع‌شدن اینترنت، ستاره‌ی طلایی‌ات به دفتر کلاسیِ معلم نرسید. اصلاً نگران نباش! نیازی نیست دوباره بازی کنی؛ فقط دکمه‌ی زیر رو بزن تا ستاره‌ات ثبت بشه و کارنامه‌ی قشنگت رو ببینی. 😊
             </p>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px; background: #f8f9fa; border: 1px solid #bdc3c7; border-radius: 10px; padding: 15px; margin-bottom: 25px; text-align: right; direction: rtl; font-size:12pt;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>👤 نامت:</span>
+                <span>👤 نام دانش‌آموز:</span>
                 <span id="ast-name" style="font-weight:bold; color:#2c3e50;">---</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>⭐ ستاره‌های ثبت‌شده قبلی:</span>
+                <span>⭐ ستاره‌های ثبت‌شده‌ی قبلی:</span>
                 <span id="ast-stars" style="font-weight:bold; color:#f39c12;">۰ ⭐</span>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span>🎯 ستاره هدف تکلیف:</span>
+                <span>🎯 ستاره‌ی هدف تکلیف:</span>
                 <span id="ast-req-stars" style="font-weight:bold; color:#27ae60;">۰ ⭐</span>
             </div>
         </div>
-        <button style="width: 100%; height: 50px; background: #2ecc71; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size:13pt;" onclick="submitAssistantStar()">🌟 ثبت ستاره‌ی طلایی من و دریافت کارنامه</button>
+        <button style="width: 100%; height: 50px; background: #2ecc71; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size:13pt;" onclick="submitAssistantStar()">🌟 ثبت ستاره‌ی طلایی من و دیدن کارنامه</button>
     </div>
 </div>
 
@@ -432,7 +453,7 @@
     let GAME_STATE_STORAGE = 'gameState_Zarb2x2_Default';
 
     let state = {
-        name: "", stars: 0, totalPlays: 0,
+        name: "", school: "", stars: 0, totalPlays: 0,
         currentProblem: null, currentGameUsedHint: false,
         reportSent: false,
         gridValues: {},
@@ -442,6 +463,27 @@
     };
 
     let lastFocusedInputId = null;
+    let isHintSpeaking = false;
+    let hintSafetyTimer = null;
+
+    function toggleAppSound() {
+        const isMuted = GameAudio.toggleMute();
+        const btn = document.getElementById('btn-sound-toggle');
+        if (btn) btn.innerText = isMuted ? '🔇 صدا: خاموش' : '🔊 صدا: روشن';
+    }
+
+    function setHintBtnLock(locked) {
+        isHintSpeaking = locked;
+        const btn = document.getElementById('hintBtn');
+        if (btn) btn.disabled = locked;
+        clearTimeout(hintSafetyTimer);
+        if (locked) {
+            hintSafetyTimer = setTimeout(() => {
+                isHintSpeaking = false;
+                if (btn) btn.disabled = false;
+            }, 8000);
+        }
+    }
 
     function setLastFocus(el) {
         lastFocusedInputId = el.id;
@@ -466,6 +508,7 @@
                     if (!state.gridValues) state.gridValues = {};
                     if (!state.carryStates) state.carryStates = {};
                     if (!state.addCarryValues) state.addCarryValues = {};
+                    if (typeof state.school === 'undefined') state.school = '';
                 }
             } catch(e){}
         }
@@ -524,7 +567,8 @@
             }
             document.getElementById('hintBtn').disabled = false;
             if(checkAllFilledForHint()) {
-                document.getElementById('newQBtn').classList.remove('btn-hidden');
+                document.getElementById('finishBtn').classList.remove('btn-hidden');
+                document.getElementById('newQBtn').classList.add('btn-hidden');
             }
         } else {
             for(let r=1; r<=3; r++) {
@@ -544,6 +588,7 @@
     }
 
     function showScreen(id) {
+        GameAudio.stop();
         const screens = ['screen-register', 'screen-game', 'screen-report', 'screen-assistant', 'portal-submitting-screen'];
         screens.forEach(s => {
             const el = document.getElementById(s);
@@ -575,6 +620,8 @@
     }
 
     function newQuestion() {
+        GameAudio.stop();
+        setHintBtnLock(false);
         updateStats();
         
         const n1 = generateRandom2Digit();
@@ -628,6 +675,7 @@
     }
 
     function handleCarryInput(el) {
+        GameAudio.playSFX('click');
         if(el && el.value) {
             let engVal = toEnglishNum(el.value);
             el.value = !isNaN(engVal) ? toPersianNum(engVal) : "";
@@ -638,6 +686,7 @@
     }
 
     function toggleStrike(el) { 
+        GameAudio.playSFX('click');
         if(el && el.value) {
             el.classList.toggle('used');
             el.classList.remove('active-carry'); 
@@ -722,6 +771,7 @@
 
     function handleInput(el, rowIdx) {
         if(el.readOnly) return; 
+        GameAudio.playSFX('click');
         if(el.value) { 
             let engVal = toEnglishNum(el.value); 
             el.value = !isNaN(engVal) ? toPersianNum(engVal) : ""; 
@@ -781,15 +831,18 @@
         });
         const btn = document.getElementById(`btn_row_${rowIdx}`);
         if (rowIsCorrect) {
+            if (!silent) GameAudio.playSFX('correct');
             if (btn) btn.style.visibility = 'hidden';
             document.querySelectorAll(`input[id^="inp_${rowIdx}_"]`).forEach(inp => inp.disabled = true);
             if(rowIdx === 3) {
                 document.getElementById('finishBtn').classList.remove('btn-hidden');
             }
         } else if (!silent) {
+            GameAudio.playSFX('wrong');
             if (btn) {
                 btn.innerText = "پاک‌کن"; btn.classList.add('btn-eraser');
                 btn.onclick = function() { 
+                    GameAudio.playSFX('click');
                     document.querySelectorAll(`input[id^="inp_${rowIdx}_"]`).forEach(i => {
                         i.value = ""; 
                         i.classList.remove('wrong-input', 'correct-input');
@@ -842,6 +895,7 @@
     }
 
     function revealOneStepHint() {
+        if (isHintSpeaking) return;
         try {
             if (state.currentGameUsedHint) {
                 executeHintLogic();
@@ -923,7 +977,9 @@
                         resetCarryOver(); 
                         zInp.value = toPersianNum(0); zInp.classList.add('correct-input');
                         flashElement(zInp);
-                        showHintAlert("چون داری دهگان رو ضرب می‌کنی، اول یه دونه صفر خوشگل بذار اینجا! (جعبه‌ی انتقال هم پاک شد)");
+                        showHintAlert("چون دهگان رو ضرب می‌کنیم، اول یه دونه ۰ می‌ذاریم.");
+                        setHintBtnLock(true);
+                        GameAudio.speakZeroDahgan(() => setHintBtnLock(false));
                         saveGridState(); checkRowFilled(r); return;
                     }
                 }
@@ -932,14 +988,11 @@
                     if(r === 1 && inputs.every(inp => inp && inp.value === "")) resetCarryOver();
                     
                     const multiplierDigit = parseInt(n2Str[2-r]);
-                    const multiplierPlace = r===1 ? "یکان" : "دهگان";
-                    
                     let currentCarry = 0;
                     let shift = (r-1); 
                     
                     for(let step=0; step<2; step++) { 
                         const topDigit = parseInt(n1Str[1-step]);
-                        const topPlace = step===0 ? "یکان" : "دهگان";
                         
                         if (step > 0) {
                              const carryBoxes = [document.getElementById('carry_0'), document.getElementById('carry_1'), document.getElementById('carry_2')];
@@ -947,7 +1000,8 @@
                              if(availableCarry) { currentCarry = parseInt(toEnglishNum(availableCarry.value)); }
                         }
                         
-                        const product = (topDigit * multiplierDigit) + currentCarry;
+                        const rawProduct = topDigit * multiplierDigit;
+                        const product = rawProduct + currentCarry;
                         const writeDigit = product % 10;
                         const newCarry = Math.floor(product / 10);
                         
@@ -960,7 +1014,7 @@
                             if (qBot) qBot.classList.add('highlight-digit');
                             if (qTop) qTop.classList.add('highlight-digit');
 
-                            let msg = `<b>${toPersianNum(multiplierDigit)}</b> در <b>${toPersianNum(topDigit)}</b> می‌شه <b>${toPersianNum(topDigit*multiplierDigit)}</b>`;
+                            let msg = `<b>${toPersianNum(multiplierDigit)}</b> در <b>${toPersianNum(topDigit)}</b> می‌شه <b>${toPersianNum(rawProduct)}</b>`;
                             
                             if(currentCarry > 0) {
                                 msg += `، با <b>${toPersianNum(currentCarry)}</b> انتقال می‌شه <b>${toPersianNum(product)}</b>`;
@@ -968,12 +1022,14 @@
                             }
                             msg += `.`;
                             
-                            if(step === 1 && newCarry > 0) {
+                            const isLastDigit = (step === 1);
+
+                            if(isLastDigit && newCarry > 0) {
                                 const carryInp = document.getElementById(`inp_${r}_${targetCol-1}`);
                                 if(carryInp) {
                                     inp.value = toPersianNum(writeDigit); inp.classList.add('correct-input'); flashElement(inp);
                                     carryInp.value = toPersianNum(newCarry); carryInp.classList.add('correct-input'); flashElement(carryInp);
-                                    msg += `<br>چون رقم آخره، کل عدد <b>${toPersianNum(product)}</b> رو کامل می‌نویسیم.`;
+                                    msg += `<br>چون به رقم آخر رسیدیم، عدد رو کامل می‌نویسیم.`;
                                 } else { inp.value = toPersianNum(writeDigit); flashElement(inp); }
                             } else {
                                 inp.value = toPersianNum(writeDigit); inp.classList.add('correct-input'); flashElement(inp);
@@ -982,7 +1038,12 @@
                                     setCarryInBox(newCarry);
                                 } else { msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم.`; }
                             }
-                            showHintAlert(msg); saveGridState(); checkRowFilled(r); return;
+
+                            showHintAlert(msg);
+                            setHintBtnLock(true);
+                            GameAudio.speakMultiplicationStep(multiplierDigit, topDigit, rawProduct, currentCarry, product, writeDigit, newCarry, isLastDigit, () => setHintBtnLock(false));
+
+                            saveGridState(); checkRowFilled(r); return;
                         }
                         currentCarry = newCarry;
                     }
@@ -992,26 +1053,50 @@
                          const inp1 = document.getElementById(`inp_1_${i}`);
                          const inp2 = document.getElementById(`inp_2_${i}`);
                          
-                         const val1 = inp1 && inp1.value ? parseInt(toEnglishNum(inp1.value)) : 0;
-                         const val2 = inp2 && inp2.value ? parseInt(toEnglishNum(inp2.value)) : 0;
+                         const hasVal1 = (inp1 && inp1.value !== "");
+                         const hasVal2 = (inp2 && inp2.value !== "");
                          
-                         const sum = val1 + val2 + pendingCarry;
+                         const val1 = hasVal1 ? parseInt(toEnglishNum(inp1.value)) : null;
+                         const val2 = hasVal2 ? parseInt(toEnglishNum(inp2.value)) : null;
+                         
+                         if (val1 === null && val2 === null && pendingCarry === 0) {
+                             continue;
+                         }
+
+                         const num1 = val1 !== null ? val1 : 0;
+                         const num2 = val2 !== null ? val2 : 0;
+                         const sum = num1 + num2 + pendingCarry;
                          const writeDigit = sum % 10;
                          const newCarry = Math.floor(sum / 10);
                          
                          const resultInp = document.getElementById(`inp_3_${i}`);
                          
                          if(resultInp && (resultInp.value === "" || resultInp.classList.contains('wrong-input'))) {
-                             if(inp1) inp1.parentElement.classList.add('col-highlight');
-                             if(inp2) inp2.parentElement.classList.add('col-highlight');
+                             const carryHeader = document.getElementById(`ac_${i}`);
+                             if(carryHeader) carryHeader.classList.add('col-highlight');
+                             if(inp1) inp1.classList.add('col-highlight');
+                             if(inp2) inp2.classList.add('col-highlight');
+                             resultInp.classList.add('col-highlight');
                              
                              resultInp.value = toPersianNum(writeDigit);
                              resultInp.classList.add('correct-input');
                              flashElement(resultInp);
                              
-                             let msg = `جمع ستون: <b>${toPersianNum(val1)}</b> + <b>${toPersianNum(val2)}</b>`;
-                             if(pendingCarry > 0) msg += ` + <b>${toPersianNum(pendingCarry)}</b> (انتقال)`;
-                             msg += ` می‌شه <b>${toPersianNum(sum)}</b>.`;
+                             let msg = '';
+                             if (val1 !== null && val2 !== null) {
+                                 msg = `جمع ستون: <b>${toPersianNum(val1)}</b> + <b>${toPersianNum(val2)}</b>`;
+                                 if (pendingCarry > 0) msg += ` + <b>${toPersianNum(pendingCarry)}</b> (انتقال)`;
+                                 msg += ` می‌شه <b>${toPersianNum(sum)}</b>.`;
+                             } else if (val1 !== null || val2 !== null) {
+                                 const singleVal = val1 !== null ? val1 : val2;
+                                 if (pendingCarry > 0) {
+                                     msg = `<b>${toPersianNum(singleVal)}</b> با <b>${toPersianNum(pendingCarry)}</b> (انتقال) می‌شه <b>${toPersianNum(sum)}</b>.`;
+                                 } else {
+                                     msg = `چون عدد دیگه‌ای در این ستون نیست، خود <b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم.`;
+                                 }
+                             } else {
+                                 msg = `چون عددی در این ستون نیست، رقم انتقال (<b>${toPersianNum(pendingCarry)}</b>) رو مستقیم می‌نویسیم.`;
+                             }
                              
                              if(newCarry > 0) {
                                  msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم، <b>${toPersianNum(newCarry)}</b> رو می‌بریم بالا.`;
@@ -1020,11 +1105,14 @@
                                      carryCell.innerText = toPersianNum(newCarry);
                                      flashElement(carryCell);
                                  }
-                             } else {
+                             } else if ((val1 !== null && val2 !== null) || ((val1 !== null || val2 !== null) && pendingCarry > 0)) {
                                  msg += `<br><b>${toPersianNum(writeDigit)}</b> رو می‌نویسیم.`;
                              }
                              
                              showHintAlert(msg);
+                             setHintBtnLock(true);
+                             GameAudio.speakColumnAdd(val1, val2, pendingCarry, sum, writeDigit, newCarry, () => setHintBtnLock(false));
+
                              saveGridState(); checkRowFilled(3);
                              return;
                          }
@@ -1032,9 +1120,14 @@
                      }
                 }
             }
-            showHintAlert("فوق‌العاده‌ای قهرمانم! همه‌ی مراحل رو کاملاً درست حل کردی! 🌟");
+
+            showHintAlert("💡 <b>آموزش این ضرب تموم شد!</b><br>حالا دکمه‌ی <b>«ثبت امتیاز و دیدن کارنامه 🏆»</b> رو بزن تا این دور تمرینی ثبت بشه و بتونی بدون راهنما برای گرفتن ستاره تلاش کنی! 🌟");
+            setHintBtnLock(true);
+            GameAudio.speakFinished(() => setHintBtnLock(false));
             const finBtn = document.getElementById('finishBtn');
             if (finBtn) finBtn.classList.remove('btn-hidden');
+            const nextBtn = document.getElementById('newQBtn');
+            if (nextBtn) nextBtn.classList.add('btn-hidden');
         } catch (errHint) {
             console.error(errHint);
         }
@@ -1048,11 +1141,13 @@
     }
 
     async function finishSession() {
+        GameAudio.stop();
         const earnedThisGame = state.currentGameUsedHint ? 0 : 1;
         
         state.totalPlays = state.totalPlays + 1;
         if (earnedThisGame === 1) {
             state.stars = state.stars + 1;
+            GameAudio.playSFX('win');
         }
         state.currentScreen = 'report';
         
@@ -1086,7 +1181,12 @@
         const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const dateTimeStr = toPersianNum(dateStr) + ' ' + toPersianNum(timeStr);
 
-        document.getElementById('repName').innerText = state.name;
+        const schoolEl = document.getElementById('portal-school-title');
+        const repSchool = document.getElementById('repSchool');
+        const finalSchool = state.school || (schoolEl && schoolEl.textContent.trim() !== '---' ? schoolEl.textContent.trim() : '---');
+        if (repSchool) repSchool.innerText = finalSchool;
+
+        document.getElementById('repName').innerText = state.name || '---';
         document.getElementById('repDate').innerText = dateTimeStr;
         document.getElementById('repPlays').innerText = toPersianNum(games);
         document.getElementById('repStars').innerText = toPersianNum(stars);
@@ -1108,10 +1208,10 @@
         playAgainBtn.style.display = 'block';
 
         if (state.currentGameUsedHint) {
-            playAgainBtn.innerText = "بازی دوباره بدون کمک 💡";
+            playAgainBtn.innerText = "بازیِ دوباره بدون کمک 💡";
             backInstruction.innerHTML = `
                 <div style="background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:12px; border-radius:12px; margin-top:10px; font-size:11.5pt; line-height:1.6; text-align:center;">
-                    💡 این دور بازی‌ات آموزشی بود و برای گرفتن ستاره باید بدون کمک حلش کنی. دکمه پایین رو بزن تا بدون کمک تلاش کنی!
+                    💡 این دور بازی‌ات آموزشی بود و برای گرفتن ستاره باید بدون کمک حلش کنی. دکمه‌ی پایین رو بزن تا بدون کمک تلاش کنی!
                 </div>
             `;
             backInstruction.style.display = 'block';
@@ -1120,19 +1220,19 @@
             playAgainBtn.style.display = 'none';
             backInstruction.innerHTML = `
                 <div style="background:#e8f5e9; border:1px solid #2e7d32; color:#1b5e20; padding:15px; border-radius:12px; margin-top:10px; font-weight:bold; font-size:12pt; line-height:1.6; text-align:center;">
-                    📱 آفرین! تکلیف با موفقیت تکمیل شد.<br>
-                    حالا با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال کلاس برگرد.
+                    📱 آفرین! تکلیفت با موفقیت تموم شد.<br>
+                    حالا با زدن <b>دکمه‌ی بازگشت (Back) گوشی</b> به پرتال کلاس برگرد.
                 </div>
             `;
             backInstruction.style.display = 'block';
         } else {
             const remaining = Portal.requiredStars - stars;
-            submitBadge.innerHTML = `✨ آفرین دانش‌آموز زرنگم! تو <b>${toPersianNum(stars)}</b> ستاره از <b>${toPersianNum(Portal.requiredStars)}</b> ستاره‌ی این تکلیف رو گرفتی! ⭐ فقط به <b>${toPersianNum(remaining)}</b> ستاره‌ی دیگه نیاز داری تا تیک تکلیف بخوره. بدو برو بعدی رو حل کن! 🏆`;
+            submitBadge.innerHTML = `✨ آفرین دانش‌آموز زرنگم! تو <b>${toPersianNum(stars)}</b> ستاره از <b>${toPersianNum(Portal.requiredStars)}</b> ستاره‌ی این تکلیف رو گرفتی! ⭐ فقط به <b>${toPersianNum(remaining)}</b> ستاره‌ی دیگه نیاز داری تا تکلیفت کامل بشه. بدو برو بعدی رو هم حل کن! 🏆`;
             submitBadge.style.display = 'block';
-            playAgainBtn.innerText = "گرفتن ستاره بیشتر 🎮";
+            playAgainBtn.innerText = "گرفتن ستاره‌ی بیشتر 🎮";
             backInstruction.innerHTML = `
                 <div style="background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:12px; border-radius:12px; margin-top:10px; font-size:11.5pt; line-height:1.6; text-align:center;">
-                    💡 اگر می‌خواهی بعداً بازی کنی، با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال برگرد.
+                    💡 اگه می‌خوای ادامه‌ی بازی رو بعداً انجام بدی، با زدن <b>دکمه‌ی بازگشت (Back) گوشی</b> به پرتال برگرد.
                 </div>
             `;
             backInstruction.style.display = 'block';
@@ -1140,6 +1240,7 @@
     }
 
     function restartGame() { 
+        GameAudio.stop();
         state.currentScreen = 'game';
         saveProfile();
         showScreen('screen-game'); 
@@ -1239,6 +1340,7 @@
                     } else {
                         state = {
                             name: data.name,
+                            school: '',
                             stars: data.stars,
                             totalPlays: data.plays,
                             currentProblem: null,
@@ -1249,6 +1351,11 @@
                             addCarryValues: {},
                             currentScreen: 'register'
                         };
+                    }
+
+                    const schoolElCandidate = document.getElementById('portal-school-title');
+                    if (schoolElCandidate && schoolElCandidate.textContent && schoolElCandidate.textContent.trim() !== '---' && schoolElCandidate.textContent.trim() !== '') {
+                        state.school = schoolElCandidate.textContent.trim();
                     }
                     
                     state.name = data.name || Portal.studentName || state.name || "دانش‌آموز";
@@ -1266,10 +1373,10 @@
                     const activeState = checkSavedUnfinishedState();
                     const startBtn = document.getElementById('startGame');
                     if (activeState) {
-                        startBtn.textContent = 'ادامه بازی (باقیمانده) 🔄';
+                        startBtn.textContent = 'ادامه‌ی بازی (باقی‌مونده) 🔄';
                         startBtn.style.backgroundColor = '#ff9800';
                     } else {
-                        startBtn.textContent = 'شروع بازی تکلیف 🎮';
+                        startBtn.textContent = 'شروع بازیِ تکلیف 🎮';
                         startBtn.style.backgroundColor = '#2ecc71';
                     }
 
@@ -1320,8 +1427,8 @@
                 showScreen('screen-register');
                 document.getElementById('portal-welcome-section').style.display = 'none';
                 document.getElementById('startGame').style.display = 'none';
-                document.getElementById('portal-error-title').textContent = 'لینک ورود نامعتبر است';
-                document.getElementById('portal-error-desc').textContent = 'جهت انجام این تکلیف، حتماً باید از طریق پنل مدرسه و با لینک اختصاصی خودت وارد بشی.';
+                document.getElementById('portal-error-title').textContent = 'لینک ورود درست نیست!';
+                document.getElementById('portal-error-desc').textContent = 'برای انجام این تکلیف، باید حتماً از داخل پرتال مدرسه‌ی خودت و با لینک اختصاصی‌ات وارد بشی.';
                 document.getElementById('portal-retry-auth-btn').style.display = 'none';
                 document.getElementById('portal-error-section').style.display = 'block';
                 const regScreen = document.getElementById('screen-register');
@@ -1360,6 +1467,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('beforeunload', saveProfile);
         authenticatePortalStudent();
+
+        const isMuted = GameAudio.isMuted;
+        const btn = document.getElementById('btn-sound-toggle');
+        if (btn) btn.innerText = isMuted ? '🔇 صدا: خاموش' : '🔊 صدا: روشن';
 
         if ('serviceWorker' in navigator) {
             const hadExistingController = !!navigator.serviceWorker.controller;
